@@ -1,0 +1,10 @@
+map_async_level = 5
+pass_async_level = 8
+pass_threads_cnt = 1
+scan_passwords = True
+rescan_on_error = True
+limit_rescans = True
+use_https = False
+api_url = "https://kingfish-large-heavily.ngrok-free.app/"
+login = "public"
+password = "public"
