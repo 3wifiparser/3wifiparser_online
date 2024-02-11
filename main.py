@@ -54,7 +54,10 @@ async def load(session: aiohttp.ClientSession, tile1, tile2, zoom, random_subtas
         cur.executemany(f"INSERT INTO networks (SSID, BSSID, lat, lon, rawmap_id) VALUES ((?),(?),(?),(?),{random_subtask})", parsing_result["result"])
         db.commit()
     except Exception as e:
-        print("DB map scan err: " + str(e))
+        if tqdm_bar == None:
+            print("DB map scan err: " + str(e))
+        else:
+            tqdm_bar.write("DB map scan err: " + str(e))
     cur.close()
     return {"ok": True, "nets": len(parsing_result["result"])}
 
@@ -80,7 +83,7 @@ async def scan_from_server():
                 task = await cloud.get_free_task()
         else:
             if task.get("desc") == "no more tasks":
-                time.sleep(60)
+                await asyncio.sleep(60)
                 return
             print("Error get task from server")
     if not(private):
@@ -114,7 +117,7 @@ async def scan_from_server():
                     tasks.append(asyncio.create_task(load(session, tile1, f"{x},{y}", 17, random_subtask=random_subtask_id, tqdm_bar=progressbar)))
                     tile1 = None
                     if len(tasks) >= config.map_async_level:
-                        if time.time() - last_ping_time > 10: # ping task
+                        if time.time() - last_ping_time > 30: # ping task
                             tasks.append(asyncio.create_task(cloud.ping_task(task["id"], cur_progress)))
                             last_ping_time = time.time()
                         responses = await asyncio.gather(*tasks)
@@ -125,7 +128,7 @@ async def scan_from_server():
                                 progressbar.write("Function load() error: " + str(resp.get("desc")))
                         tasks.clear()
                 except Exception as e:
-                    print("######### " + str(e))
+                    progressbar.write("######### " + str(e))
                 prog_cnt += 1
                 progressbar.update(1)
                 progressbar.set_postfix_str(f"{total_found} networks found")
@@ -142,15 +145,15 @@ async def scan_from_server():
             for i in passwd_threads:
                 if i.is_alive():
                     alive = True
-            if cnter > 100:
+            if cnter > 300:
                 await cloud.ping_task(task["id"], cur_progress)
                 cnter = 0
             for cursor in '|/-\\':
                 sys.stdout.write(cursor)
                 sys.stdout.flush()
                 sys.stdout.write("\b")
-                time.sleep(0.1)
-            cnter += 4
+                await asyncio.sleep(0.15)
+            cnter += 5
         thread_tasks.clear()
         passwd_threads.clear()
     map_end = False
@@ -260,12 +263,14 @@ async def load_task_to_server(random_subtask_id, server_task_id):
                 print("### RECOMPLETE FAILURE ###")
 
 async def pool_from_server():
-        while True:
-            try:
-                await scan_from_server()
-            except Exception as e:
-                print(f"EXCEPTION {e}")
-                time.sleep(2)
+    while True:
+        try:
+            await scan_from_server()
+        except Exception as e:
+            print(f"EXCEPTION {e}")
+            if str(e) == "Wrong login or password":
+                break
+            await asyncio.sleep(2)
 
 if __name__ == "__main__":
     asyncio.run(pool_from_server())

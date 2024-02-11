@@ -1,5 +1,7 @@
 import aiohttp
 import config
+import json
+import zlib
 
 token = None
 session = None
@@ -8,9 +10,14 @@ async def get_token():
     global session,token
     if session == None:
         session = aiohttp.ClientSession()
-    resp = await (await session.get(config.api_url + "auth", auth=aiohttp.BasicAuth(config.login, config.password))).json()
-    if resp["ok"]:
-        token = resp["token"]
+    resp = await session.get(config.api_url + "auth", auth=aiohttp.BasicAuth(config.login, config.password))
+    if resp.status == 401:
+        raise Exception("Wrong login or password")
+    resp = await resp.json()
+    if resp.get("ok") == True:
+        token = resp.get("token")
+    elif resp.get("desc") == "auth failed":
+        raise Exception("Wrong login or password")
     return resp
 
 async def get_free_task():
@@ -27,7 +34,7 @@ async def ping_task(task_id, progress):
     if token == None:
         await get_token()
     resp = await (await session.get(f"{config.api_url}pingTask?task_id={task_id}&token={token}&progress={progress}")).json()
-    if not(resp["ok"]):
+    if resp.get("ok") != True:
         if resp.get("desc") == "wrong token":
             await get_token()
     return resp
@@ -39,7 +46,7 @@ async def private_task(task_id):
     if token == None:
         await get_token()
     resp = await (await session.get(f"{config.api_url}privateTask?task_id={task_id}&token={token}")).json()
-    if not(resp["ok"]):
+    if resp.get("ok") != True:
         if resp.get("desc") == "wrong token":
             await get_token()
     return resp
@@ -55,9 +62,15 @@ async def complete_task(result: list, task_id: int):
         "task_id": task_id,
         "token": token
     }
-    resp = await session.post(f"{config.api_url}closeTask", json=body)
+    body = json.dumps(body).encode("utf-8")
+    body = zlib.compress(body, 9)
+    headers = {
+        "Content-Type": "application/json",
+        "Content-Encoding": "gzip"
+    }
+    resp = await session.post(f"{config.api_url}closeTask", data=body, headers=headers)
     resp = await resp.json()
-    if not(resp["ok"]):
+    if resp.get("ok") != True:
         if resp.get("desc") == "wrong token":
             await get_token()
     return resp
