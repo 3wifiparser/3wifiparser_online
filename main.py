@@ -12,6 +12,9 @@ import sys
 import config
 import fw_parser
 
+#VERSION
+#3wifiparser1.0
+
 #temp database
 rand_database_id = random.getrandbits(16)
 shutil.copy("clean_base.db", f"temp{rand_database_id}.db")
@@ -40,7 +43,7 @@ async def load(session: aiohttp.ClientSession, tile1, tile2, zoom, random_subtas
 
     parsing_result = fw_parser.parse_map(to_parse)
     if not(parsing_result["ok"]):
-        if tqdm_bar == None:
+        if tqdm_bar is None:
             print(parsing_result["desc"])
         else:
             tqdm_bar.write(parsing_result["desc"])
@@ -54,7 +57,7 @@ async def load(session: aiohttp.ClientSession, tile1, tile2, zoom, random_subtas
         cur.executemany(f"INSERT INTO networks (SSID, BSSID, lat, lon, rawmap_id) VALUES ((?),(?),(?),(?),{random_subtask})", parsing_result["result"])
         db.commit()
     except Exception as e:
-        if tqdm_bar == None:
+        if tqdm_bar is None:
             print("DB map scan err: " + str(e))
         else:
             tqdm_bar.write("DB map scan err: " + str(e))
@@ -122,7 +125,9 @@ async def scan_from_server():
                             last_ping_time = time.time()
                         responses = await asyncio.gather(*tasks)
                         for resp in responses:
-                            if resp["ok"] and "nets" in resp:
+                            if resp == None:
+                                continue
+                            if not(not(resp["ok"])) and "nets" in resp:
                                 total_found += int(resp.get("nets"))
                             elif not(resp["ok"]):
                                 progressbar.write("Function load() error: " + str(resp.get("desc")))
@@ -136,7 +141,12 @@ async def scan_from_server():
     map_end = True
     progressbar.close()
     cnter = 0
-    sys.stdout.write("Loading passwords ")
+    cur = db.cursor()
+    cur.execute("SELECT count(*) FROM networks WHERE API_ANS IS NULL AND rawmap_id=?", (random_subtask_id, ))
+    no_loaded = cur.fetchone()[0]
+    cur.close()
+    progressbar = tqdm.tqdm(total=no_loaded, ascii=True)
+    progressbar.set_description_str("Loading passwords")
     if config.scan_passwords:
         global passwd_threads, thread_tasks
         alive = True
@@ -148,14 +158,22 @@ async def scan_from_server():
             if cnter > 300:
                 await cloud.ping_task(task["id"], cur_progress)
                 cnter = 0
-            for cursor in '|/-\\':
-                sys.stdout.write(cursor)
-                sys.stdout.flush()
-                sys.stdout.write("\b")
-                await asyncio.sleep(0.15)
-            cnter += 5
+            cur = db.cursor()
+            cur.execute("SELECT count(*) FROM networks WHERE API_ANS IS NULL AND rawmap_id=?", (random_subtask_id, ))
+            val = cur.fetchone()[0]
+            cur.close()
+            progressbar.update(no_loaded - val)
+            no_loaded = val
+            await asyncio.sleep(1)
+            #for cursor in '|/-\\':
+            #    sys.stdout.write(cursor)
+            #    sys.stdout.flush()
+            #    sys.stdout.write("\b")
+            #    await asyncio.sleep(1)
+            cnter += 10
         thread_tasks.clear()
         passwd_threads.clear()
+    progressbar.close()
     map_end = False
     print("\nSending scan results to server")
     await load_task_to_server(random_subtask_id, task["id"])
@@ -253,14 +271,21 @@ async def load_task_to_server(random_subtask_id, server_task_id):
     ans = await cloud.complete_task(parsed_data, server_task_id)
     if not(ans.get("ok")):
         if ans.get("desc") == "task is free":
-            print("###TASK IS FREE###")
+            print("### TASK IS FREE ###")
             reprivate = await cloud.private_task(server_task_id)
             if not(reprivate.get("ok")):
                 print("### REPRIVATE ERROR ###")
                 return
+            else:
+                print("### REPRIVATE SUCCESS ###")
             ans = await cloud.complete_task(parsed_data, server_task_id)
             if not(ans.get("ok")):
                 print("### RECOMPLETE FAILURE ###")
+            else:
+                print("### RECOMPLETE SUCCESS ###")
+        else:
+            print("### COMPLETE ERROR ###")
+            print(ans.get("desc"))
 
 async def pool_from_server():
     while True:

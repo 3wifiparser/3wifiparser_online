@@ -5,11 +5,14 @@ import zlib
 
 token = None
 session = None
+user_agent = {
+    "User-Agent": "3wifiparser1.0"
+}
 
 async def get_token():
     global session,token
     if session == None:
-        session = aiohttp.ClientSession()
+        session = aiohttp.ClientSession(headers=user_agent)
     resp = await session.get(config.api_url + "auth", auth=aiohttp.BasicAuth(config.login, config.password))
     if resp.status == 401:
         raise Exception("Wrong login or password")
@@ -23,14 +26,14 @@ async def get_token():
 async def get_free_task():
     global session,token
     if session == None:
-        session = aiohttp.ClientSession()
+        session = aiohttp.ClientSession(headers=user_agent)
     resp = await session.get(config.api_url + "getFreeTask")
     return await resp.json()
     
 async def ping_task(task_id, progress):
     global session,token
     if session == None:
-        session = aiohttp.ClientSession()
+        session = aiohttp.ClientSession(headers=user_agent)
     if token == None:
         await get_token()
     resp = await (await session.get(f"{config.api_url}pingTask?task_id={task_id}&token={token}&progress={progress}")).json()
@@ -42,7 +45,7 @@ async def ping_task(task_id, progress):
 async def private_task(task_id):
     global session,token
     if session == None:
-        session = aiohttp.ClientSession()
+        session = aiohttp.ClientSession(headers=user_agent)
     if token == None:
         await get_token()
     resp = await (await session.get(f"{config.api_url}privateTask?task_id={task_id}&token={token}")).json()
@@ -54,7 +57,7 @@ async def private_task(task_id):
 async def complete_task(result: list, task_id: int):
     global session,token
     if session == None:
-        session = aiohttp.ClientSession()
+        session = aiohttp.ClientSession(headers=user_agent)
     if token == None:
         await get_token()
     body = {
@@ -66,7 +69,8 @@ async def complete_task(result: list, task_id: int):
     body = zlib.compress(body, 9)
     headers = {
         "Content-Type": "application/json",
-        "Content-Encoding": "gzip"
+        "Content-Encoding": "gzip",
+        "User-Agent": user_agent["User-Agent"]
     }
     resp = await session.post(f"{config.api_url}closeTask", data=body, headers=headers)
     resp = await resp.json()
