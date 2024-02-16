@@ -7,23 +7,34 @@ import cloud
 import random
 import shutil
 import tqdm
+import os
 import time
-import sys
 import config
 import fw_parser
 
+#CONF
+only_ascii_progressbar = True
+
+
+
 #VERSION
-#3wifiparser1.0
+#3wifiparser1.1
 
 #temp database
+if not(os.path.isdir("tempdbs")):
+    os.mkdir("tempdbs")
+else:
+    print("dir exist")
 rand_database_id = random.getrandbits(16)
-shutil.copy("clean_base.db", f"temp{rand_database_id}.db")
-db = sqlite3.connect(f"temp{rand_database_id}.db", check_same_thread=False)
+shutil.copy("clean_base.db", f"tempdbs/temp{rand_database_id}.db")
+db = sqlite3.connect(f"tempdbs/temp{rand_database_id}.db", check_same_thread=False)
 
 map_end = False
 db_lock = threading.Lock()
 protocol = "https" if config.use_https else "http"
 cur_progress = 0
+if not(config.api_url.endswith("/")):
+    config.api_url += "/"
 headers = { 
   "Content-type": "application/json",  
   "Accept": "text/plain", 
@@ -52,28 +63,33 @@ async def load(session: aiohttp.ClientSession, tile1, tile2, zoom, random_subtas
             return await load(session, tile1, tile2, zoom, random_subtask=random_subtask, rescan_level=rescan_level + 1, tqdm_bar=tqdm_bar)
         else:
             return {"ok": False, "desc": parsing_result["desc"]}
+    if len(parsing_result["result"]) == 0:
+        return {"ok": True, "nets": 0}
     cur = db.cursor()
-    try:
-        cur.executemany(f"INSERT INTO networks (SSID, BSSID, lat, lon, rawmap_id) VALUES ((?),(?),(?),(?),{random_subtask})", parsing_result["result"])
-        db.commit()
-    except Exception as e:
-        if tqdm_bar is None:
-            print("DB map scan err: " + str(e))
-        else:
-            tqdm_bar.write("DB map scan err: " + str(e))
+    db_lock.acquire()
+    for i in range(10):
+        try:
+            cur.executemany(f"INSERT INTO networks (SSID, BSSID, lat, lon, rawmap_id) VALUES ((?),(?),(?),(?),{random_subtask})", parsing_result["result"])
+            db.commit()
+            break
+        except Exception as e:
+            retry_index = "### RETRY " + str(i) + "\n" if i > 0 else ""
+            if tqdm_bar is None:
+                print(retry_index + "DB map scan err: " + str(e))
+            else:
+                tqdm_bar.write(retry_index + "DB map scan err: " + str(e))
     cur.close()
+    db_lock.release()
     return {"ok": True, "nets": len(parsing_result["result"])}
 
 async def scan_from_server():
     global cur_progress, random_subtask_id, map_end
-    if config.scan_passwords:
-        start_passwords_scan()
     print("Receiving a task from the server...")
     task = await cloud.get_free_task()
     private = False
-    print("Privating task...")
     for i in range(5):
         if task.get("ok"):
+            print("Privating task...")
             task = task["data"]
             min_maxTileX = json.loads(task["min_maxTileX"])
             min_maxTileY = json.loads(task["min_maxTileY"])
@@ -86,18 +102,21 @@ async def scan_from_server():
                 task = await cloud.get_free_task()
         else:
             if task.get("desc") == "no more tasks":
+                print("No more tasks. Wait 1 minute...")
                 await asyncio.sleep(60)
                 return
-            print("Error get task from server")
+            else:
+                print("Invalid task from server")
     if not(private):
         raise Exception("SERVER ERROR")
     print("Task privated")
     last_ping_time = time.time()
     tiles_cnt = (min_maxTileX[1] - min_maxTileX[0] + 1) * (min_maxTileY[1] - min_maxTileY[0] + 1)
     print(f"Need to scan {progress[1] - progress[0]} tiles")
-    progressbar = tqdm.tqdm(total=(progress[1] - progress[0] + 1), ascii=True)
+    progressbar = tqdm.tqdm(total=(progress[1] - progress[0] + 1), ascii=only_ascii_progressbar)
     random_subtask_id = random.getrandbits(32)
     total_found = 0
+    start_passwords_scan()
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(force_close=True, ssl=False)) as session:
         tasks = []
         tile1 = None
@@ -141,14 +160,16 @@ async def scan_from_server():
     map_end = True
     progressbar.close()
     cnter = 0
+    db_lock.acquire()
     cur = db.cursor()
     cur.execute("SELECT count(*) FROM networks WHERE API_ANS IS NULL AND rawmap_id=?", (random_subtask_id, ))
     no_loaded = cur.fetchone()[0]
     cur.close()
-    progressbar = tqdm.tqdm(total=no_loaded, ascii=True)
-    progressbar.set_description_str("Loading passwords")
-    if config.scan_passwords:
-        global passwd_threads, thread_tasks
+    db_lock.release()
+    global passwd_threads, thread_tasks
+    if no_loaded != 0:
+        progressbar = tqdm.tqdm(total=no_loaded, ascii=only_ascii_progressbar)
+        progressbar.set_description_str("Loading passwords")
         alive = True
         while alive:
             alive = False
@@ -158,25 +179,27 @@ async def scan_from_server():
             if cnter > 300:
                 await cloud.ping_task(task["id"], cur_progress)
                 cnter = 0
+            db_lock.acquire()
             cur = db.cursor()
             cur.execute("SELECT count(*) FROM networks WHERE API_ANS IS NULL AND rawmap_id=?", (random_subtask_id, ))
             val = cur.fetchone()[0]
             cur.close()
+            db_lock.release()
             progressbar.update(no_loaded - val)
             no_loaded = val
             await asyncio.sleep(1)
-            #for cursor in '|/-\\':
-            #    sys.stdout.write(cursor)
-            #    sys.stdout.flush()
-            #    sys.stdout.write("\b")
-            #    await asyncio.sleep(1)
             cnter += 10
-        thread_tasks.clear()
-        passwd_threads.clear()
-    progressbar.close()
+        progressbar.close()
+        print("\nSending scan results to server")
+        await load_task_to_server(random_subtask_id, task["id"])
+    else:
+        print("\nSending scan results to server")
+        await load_task_to_server(random_subtask_id, task["id"])
+        for i in passwd_threads:
+            i.join()
+    thread_tasks.clear()
+    passwd_threads.clear()
     map_end = False
-    print("\nSending scan results to server")
-    await load_task_to_server(random_subtask_id, task["id"])
     print("Completed!")
 
 thread_tasks = []
@@ -186,30 +209,36 @@ async def get_passwords(session, bssids: list):
     tasks = [asyncio.create_task(session.get(f"{protocol}://134.0.119.34/api/ajax.php?Version=0.51&Key={ajax_apikey}&Query=Find&BSSID={i}", headers=headers)) for i in bssids]
     responses = await asyncio.gather(*tasks)
     cnt = 0
+    db_lock.acquire()
     cur = db.cursor()
     to_base = []
     for resp in responses:
         to_base.append((await resp.text(), bssids[cnt]))
         cnt += 1
-    try:
-        with db_lock:
+    for i in range(10):
+        try:
             cur.executemany("UPDATE networks SET API_ANS=(?) WHERE bssid=(?)", to_base)
             cur.close()
             bssids.clear()
             db.commit()
-    except Exception as e:
-        print("api_ans upd erorr: " + str(e))
-        pass
+            db_lock.release()
+            break
+        except Exception as e:
+            db_lock.release()
+            print("api_ans upd erorr: " + str(e))
+            pass
 
 def thread_balancer(threads_cnt, async_limit=8):
     all_queued = []
     for i in range(threads_cnt):
         for y in thread_tasks[i]:
             all_queued.append(y)
+    db_lock.acquire()
     cursor = db.cursor()
     cursor.execute("SELECT DISTINCT bssid FROM networks WHERE API_ANS IS NULL AND bssid NOT in (?) LIMIT (?)", (str(all_queued)[1:-1], int(async_limit) * threads_cnt))
     bssids = cursor.fetchall()
     cursor.close()
+    db_lock.release()
     thread_tasks_cnt = []
     for i in range(threads_cnt):
         thread_tasks_cnt.append(len(thread_tasks[i]))
@@ -229,14 +258,11 @@ async def pool_passwords(thread_ind=0, async_limit=8):
             try:
                 if len(thread_tasks[thread_ind]) > 0:
                     if len(thread_tasks[thread_ind]) < async_limit:
-                        with db_lock:
-                            thread_balancer(config.pass_threads_cnt, async_limit)
+                        thread_balancer(config.pass_threads_cnt, async_limit)
                     await get_passwords(session, thread_tasks[thread_ind])
-                    with db_lock:
-                        thread_balancer(config.pass_threads_cnt, async_limit)
+                    thread_balancer(config.pass_threads_cnt, async_limit)
                 else:
-                    with db_lock:
-                        thread_balancer(config.pass_threads_cnt, async_limit)
+                    thread_balancer(config.pass_threads_cnt, async_limit)
                     await asyncio.sleep(0.5)
             except Exception as e:
                 print("pool " + str(e))
@@ -252,9 +278,12 @@ def start_passwords_scan():
         th.start()
 
 async def load_task_to_server(random_subtask_id, server_task_id):
+    db_lock.acquire()
     cur = db.cursor()
     cur.execute("SELECT SSID,BSSID,API_ANS,lat,lon FROM networks WHERE rawmap_id=?", (random_subtask_id, ))
     data = cur.fetchall()
+    cur.close()
+    db_lock.release()
     parsed_data = []
     for i in data:
         psd = [i[0], i[1], None, None, i[3], i[4]]
@@ -265,8 +294,8 @@ async def load_task_to_server(random_subtask_id, server_task_id):
         if not(api_ans["Successes"]):
             parsed_data.append(psd)
             continue
-        psd[2] = ",".join(api_ans["Keys"])
-        psd[3] = ",".join(api_ans["WPS"])
+        psd[2] = "\n".join(api_ans["Keys"])
+        psd[3] = "\n".join(api_ans["WPS"])
         parsed_data.append(psd)
     ans = await cloud.complete_task(parsed_data, server_task_id)
     if not(ans.get("ok")):

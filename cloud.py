@@ -6,7 +6,7 @@ import zlib
 token = None
 session = None
 user_agent = {
-    "User-Agent": "3wifiparser1.0"
+    "User-Agent": "3wifiparser1.1"
 }
 
 async def get_token():
