@@ -82,6 +82,22 @@ async def load(session: aiohttp.ClientSession, tile1, tile2, zoom, random_subtas
     db_lock.release()
     return {"ok": True, "nets": len(parsing_result["result"])}
 
+async def load_tasks(tasks, progressbar, last_ping_time, task_id):
+    total_found = 0
+    if time.time() - last_ping_time[0] > 30: # ping task
+        tasks.append(asyncio.create_task(cloud.ping_task(task_id, cur_progress)))
+        last_ping_time[0] = time.time()
+    responses = await asyncio.gather(*tasks)
+    for resp in responses:
+        if resp == None:
+            continue
+        if not(not(resp["ok"])) and "nets" in resp:
+            total_found += int(resp.get("nets"))
+        elif not(resp["ok"]):
+            progressbar.write("Function load() error: " + str(resp.get("desc")))
+    tasks.clear()
+    return total_found
+
 async def scan_from_server():
     global cur_progress, random_subtask_id, map_end
     print("Receiving a task from the server...")
@@ -110,7 +126,7 @@ async def scan_from_server():
     if not(private):
         raise Exception("SERVER ERROR")
     print("Task privated")
-    last_ping_time = time.time()
+    last_ping_time = [time.time()]
     tiles_cnt = (min_maxTileX[1] - min_maxTileX[0] + 1) * (min_maxTileY[1] - min_maxTileY[0] + 1)
     print(f"Need to scan {progress[1] - progress[0]} tiles")
     progressbar = tqdm.tqdm(total=(progress[1] - progress[0] + 1), ascii=only_ascii_progressbar)
@@ -128,7 +144,12 @@ async def scan_from_server():
                 if prog_cnt < progress[0]:
                     prog_cnt += 1
                     continue
-                if prog_cnt > progress[1]:
+                if prog_cnt > progress[1] or y == min_maxTileY[1]:
+                    if tile1 != None:
+                        tasks.append(asyncio.create_task(load(session, tile1, tile1, 17, random_subtask=random_subtask_id, tqdm_bar=progressbar)))
+                        tile1 = None
+                    if len(tasks) > 0:
+                        total_found += await load_tasks(tasks, progressbar, last_ping_time, task["id"])
                     break
                 if tile1 == None:
                     tile1 = f"{x},{y}"
@@ -138,19 +159,8 @@ async def scan_from_server():
                 try:
                     tasks.append(asyncio.create_task(load(session, tile1, f"{x},{y}", 17, random_subtask=random_subtask_id, tqdm_bar=progressbar)))
                     tile1 = None
-                    if len(tasks) >= config.map_async_level:
-                        if time.time() - last_ping_time > 30: # ping task
-                            tasks.append(asyncio.create_task(cloud.ping_task(task["id"], cur_progress)))
-                            last_ping_time = time.time()
-                        responses = await asyncio.gather(*tasks)
-                        for resp in responses:
-                            if resp == None:
-                                continue
-                            if not(not(resp["ok"])) and "nets" in resp:
-                                total_found += int(resp.get("nets"))
-                            elif not(resp["ok"]):
-                                progressbar.write("Function load() error: " + str(resp.get("desc")))
-                        tasks.clear()
+                    if len(tasks) >= config.map_async_level or prog_cnt + 2 > progress[1]:
+                        total_found += await load_tasks(tasks, progressbar, last_ping_time, task["id"])
                 except Exception as e:
                     progressbar.write("######### " + str(e))
                 prog_cnt += 1
