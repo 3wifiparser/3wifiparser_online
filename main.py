@@ -129,7 +129,8 @@ async def scan_from_server():
     last_ping_time = [time.time()]
     tiles_cnt = (min_maxTileX[1] - min_maxTileX[0] + 1) * (min_maxTileY[1] - min_maxTileY[0] + 1)
     print(f"Need to scan {progress[1] - progress[0]} tiles")
-    progressbar = tqdm.tqdm(total=(progress[1] - progress[0]), ascii=only_ascii_progressbar)
+    bar_length = progress[1] - progress[0]
+    progressbar = tqdm.tqdm(total=bar_length, ascii=only_ascii_progressbar)
     random_subtask_id = random.getrandbits(32)
     total_found = 0
     start_passwords_scan()
@@ -147,14 +148,17 @@ async def scan_from_server():
                 if prog_cnt > progress[1] or (y == min_maxTileY[1] and x == min_maxTileX[1]):
                     if tile1 != None:
                         tasks.append(asyncio.create_task(load(session, tile1, tile1, 17, random_subtask=random_subtask_id, tqdm_bar=progressbar)))
-                        progressbar.update(1)
+                        prog_cnt += 1
+                        if progressbar.n < bar_length:
+                            progressbar.update(1)
                         tile1 = None
                     if len(tasks) > 0:
                         total_found += await load_tasks(tasks, progressbar, last_ping_time, task["id"])
                     break
                 if tile1 == None:
                     tile1 = f"{x},{y}"
-                    progressbar.update(1)
+                    if progressbar.n < bar_length:
+                        progressbar.update(1)
                     prog_cnt += 1
                     continue
                 try:
@@ -165,7 +169,8 @@ async def scan_from_server():
                 except Exception as e:
                     progressbar.write("######### " + str(e))
                 prog_cnt += 1
-                progressbar.update(1)
+                if progressbar.n < bar_length:
+                    progressbar.update(1)
                 progressbar.set_postfix_str(f"{total_found} networks found")
                 cur_progress = prog_cnt
     map_end = True
