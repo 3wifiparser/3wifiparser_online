@@ -198,8 +198,8 @@ async def scan_from_server():
             db_lock.release()
             progressbar.update(no_loaded - val)
             no_loaded = val
-            await asyncio.sleep(1)
-            cnter += 10
+            await asyncio.sleep(0.5)
+            cnter += 5
         progressbar.close()
         print("\nSending scan results to server")
         await load_task_to_server(random_subtask_id, task["id"])
@@ -261,12 +261,24 @@ def thread_balancer(threads_cnt, async_limit=8):
         if thread_tasks_cnt[min_load_ind] < async_limit:
             thread_tasks[min_load_ind].append(i[0])
             thread_tasks_cnt[min_load_ind] += 1
+            
+def cnt_none_pass():
+    db_lock.acquire()
+    cursor = db.cursor()
+    cursor.execute("SELECT count(*) FROM networks WHERE API_ANS IS NULL")
+    cnt = cursor.fetchone()[0]
+    cursor.close()
+    db_lock.release()
+    return cnt
 
 async def pool_passwords(thread_ind=0, async_limit=8):
     global map_end
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(force_close=True, ssl=False)) as session:
-        while not(map_end) or len(thread_tasks[thread_ind]) > 0:
+        while True:
             try:
+                if map_end:
+                    if cnt_none_pass() < 1:
+                        break;
                 if len(thread_tasks[thread_ind]) > 0:
                     if len(thread_tasks[thread_ind]) < async_limit:
                         thread_balancer(config.pass_threads_cnt, async_limit)
