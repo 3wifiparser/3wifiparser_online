@@ -6,17 +6,28 @@ import zlib
 token = None
 session = None
 user_agent = {
-    "User-Agent": "3wifiparser1.1"
+    "User-Agent": "3wifiparser2.0"
 }
+
+async def set_session():
+    global session
+    if session == None:
+        session = aiohttp.ClientSession(headers=user_agent)
+
+async def set_token():
+    global token
+    if token == None:
+        await get_token()
 
 async def get_token():
     global session,token
-    if session == None:
-        session = aiohttp.ClientSession(headers=user_agent)
+    await set_session()
     resp = await session.get(config.api_url + "auth", auth=aiohttp.BasicAuth(config.login, config.password))
     if resp.status == 401:
         raise Exception("Wrong login or password")
     resp = await resp.json()
+    if not("version" in resp):
+        raise Exception("Old server")
     if resp.get("ok") == True:
         token = resp.get("token")
     elif resp.get("desc") == "auth failed":
@@ -25,41 +36,39 @@ async def get_token():
 
 async def get_free_task():
     global session,token
-    if session == None:
-        session = aiohttp.ClientSession(headers=user_agent)
+    await set_session()
     resp = await session.get(config.api_url + "getFreeTask")
     return await resp.json()
     
-async def ping_task(task_id, progress):
+async def ping_task(task_id):
     global session,token
-    if session == None:
-        session = aiohttp.ClientSession(headers=user_agent)
-    if token == None:
-        await get_token()
-    resp = await (await session.get(f"{config.api_url}pingTask?task_id={task_id}&token={token}&progress={progress}")).json()
+    await set_session()
+    await set_token()
+    resp = await (await session.get(f"{config.api_url}pingTask?task_id={task_id}&token={token}")).json()
     if resp.get("ok") != True:
         if resp.get("desc") == "wrong token":
             await get_token()
+            return await ping_task(task_id)
+        elif resp.get("desc") == "task is free":
+            await private_task(task_id)
     return resp
 
 async def private_task(task_id):
     global session,token
-    if session == None:
-        session = aiohttp.ClientSession(headers=user_agent)
-    if token == None:
-        await get_token()
+    await set_session()
+    await set_token()
     resp = await (await session.get(f"{config.api_url}privateTask?task_id={task_id}&token={token}")).json()
     if resp.get("ok") != True:
         if resp.get("desc") == "wrong token":
             await get_token()
+            return await private_task(task_id)
     return resp
     
 async def complete_task(result: list, task_id: int):
+    #data - SSID,BBSID,format,sec,passwords,WPS_keys,lat,lon,time
     global session,token
-    if session == None:
-        session = aiohttp.ClientSession(headers=user_agent)
-    if token == None:
-        await get_token()
+    await set_session()
+    await set_token()
     body = {
         "result": result,
         "task_id": task_id,
@@ -77,4 +86,24 @@ async def complete_task(result: list, task_id: int):
     if resp.get("ok") != True:
         if resp.get("desc") == "wrong token":
             await get_token()
+            return await complete_task(result, task_id)
     return resp
+
+async def anonymous_upload(data: list):
+    #data - SSID,BBSID,format,sec,passwords,WPS_keys,lat,lon,time
+    global session,token
+    await set_session()
+    body = json.dumps({"data": data}).encode("utf-8")
+    body = zlib.compress(body, 9)
+    headers = {
+        "Content-Type": "application/json",
+        "Content-Encoding": "gzip",
+        "User-Agent": user_agent["User-Agent"]
+    }
+    resp = await session.post(f"{config.api_url}anonymousUpload", data=body, headers=headers)
+    resp = await resp.json()
+    return resp
+
+async def close_session():
+    if not(session is None):
+        await session.close()
