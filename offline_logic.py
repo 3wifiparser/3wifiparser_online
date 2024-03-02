@@ -36,5 +36,5 @@ def pos2task(borders):
     t.min_maxTileX = [int(min(pixel_coords1[0], pixel_coords2[0])), int(max(pixel_coords1[0], pixel_coords2[0]))]
     t.min_maxTileY = [int(min(pixel_coords1[1], pixel_coords2[1])), int(max(pixel_coords1[1], pixel_coords2[1]))]
     t.max_area = max_area
-    t.progress = [0, 1000000]
+    t.progress = [0, 67108864]
     return t

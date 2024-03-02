@@ -31,9 +31,12 @@ passwords.set_api_url(api_path)
 async def anon_upload():
     nets = database.get_non_shared()
     if len(nets) > 0:
-        await cloud.anonymous_upload(nets)
-        database.set_shared([i[1] for i in nets])
-        return True
+        try:
+            await cloud.anonymous_upload(nets)
+            database.set_shared([i[1] for i in nets])
+            return True
+        except:
+            return False
     else:
         return False
 
@@ -88,7 +91,8 @@ async def scan_task(task: utils.Task, pinging=True): # scans task
     ping_interval = 30 if pinging else 2
     total_found = 0
     passwords.start_passwords_scan()
-    tiles = [",".join([str(y) for y in i]) for i in task.get_tiles()]
+    tiles = task.get_tiles()
+    tiles = [",".join([str(y) for y in i]) for i in tiles]
     progressbar = tqdm.tqdm(total=len(tiles), ascii=config.only_ascii_progressbar)
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(force_close=True, ssl=False)) as session:
         tasks = []

@@ -112,14 +112,17 @@ def save_passwords_gate(data):
     cur = conn.cursor()
     for bssid, wifi_list in data.items():
         wifi_list.sort(key=lambda a: convert_date_to_unix(a["time"]))
-        cur.execute("UPDATE networks SET format=-1 WHERE BSSID=?", (bssid, ))
+        cur.execute("UPDATE networks SET format=-1 WHERE BSSID=? AND format is NULL", (bssid, ))
         for wifi_info in wifi_list:
             essid = wifi_info["essid"]
             sec = wifi_info["sec"]
             key = wifi_info["key"]
             wps = wifi_info["wps"]
             tim = wifi_info["time"]
-            cur.execute("UPDATE networks SET format=1,sec=?,passwords=?,WPS_keys=?,time=? WHERE BSSID=? AND SSID=?", (sec, key, wps, tim, bssid, essid))
+            cur.execute(f"""UPDATE networks SET format=1,sec=?,passwords=?,WPS_keys=?,time=?
+            WHERE ROWID IN (
+                SELECT ROWID FROM networks WHERE BSSID=? AND SSID=? AND format=-1 LIMIT 1
+            )""", (sec, key, wps, tim, bssid, essid))
     cur.close()
     conn.commit()
     db_lock.release()

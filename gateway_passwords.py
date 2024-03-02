@@ -3,9 +3,11 @@ import database
 import asyncio
 import threading
 import json
+from config import direct_api
 
-api_url = "https://wifibase.zapto.org:7080/api"
-api_key = "23ZRA8UBSLsdhbdJMp7IpbbsrDFDLuBC"
+
+api_url = "http://134.0.119.34/api" if direct_api else "https://wifibase.zapto.org:7080/api"
+api_key = "u2jJfJnlGXf0oi5VcBkt2LBKXIBgTkPd" if direct_api else "23ZRA8UBSLsdhbdJMp7IpbbsrDFDLuBC"
 thread = None
 map_end = False
 
@@ -14,6 +16,8 @@ headers = {
     "Accept": "text/plain"
 }
 
+if direct_api:
+    headers["Host"] = "3wifi.stascorp.com"
 
 if not(api_url.endswith("/")):
     api_url += "/"
