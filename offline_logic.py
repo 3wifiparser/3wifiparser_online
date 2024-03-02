@@ -1,6 +1,8 @@
 import math
 from utils import Task
 from random import getrandbits
+from sys import argv
+from database import get_task
 
 def from_geo_to_pixels(lat, long, projection, z):
     rho = math.pow(2, z + 8) / 2
@@ -11,12 +13,25 @@ def from_geo_to_pixels(lat, long, projection, z):
     y_p = rho * (1 - math.log(theta) / math.pi)
     return [x_p // 256, y_p // 256]
 
+def check_offline_argv():
+    return ("-s" in argv) or ("--p1" in argv and "--p2" in argv)
+
+def get_task_argv():
+    if "-s" in argv:
+        return get_task(argv[argv.index("-s") + 1])
+    else:
+        return None
+
 def get_pos1_pos2():
-    pos1str = input("pos1: ")
+    if "--p1" in argv and "--p2" in argv:
+        pos1str = argv[argv.index("--p1") + 1]
+        pos2str = argv[argv.index("--p2") + 1]
+    else:
+        pos1str = input("pos1: ")
+        pos2str = input("pos2: ")
     border1 = pos1str.split(",")
     border1[0] = float(border1[0])
     border1[1] = float(border1[1])
-    pos2str = input("pos2: ")
     border2 = pos2str.split(",")
     border2[0] = float(border2[0])
     border2[1] = float(border2[1])

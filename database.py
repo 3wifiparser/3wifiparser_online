@@ -190,6 +190,16 @@ def get_total_nets():
 def get_non_shared():
     return _fetchall("SELECT SSID,BSSID,format,sec,passwords,WPS_keys,lat,lon,time FROM networks WHERE shared=0 AND NOT(format IS NULL) LIMIT 200")
 
+def get_task(task_id):
+    data = _fetchall("SELECT * FROM tasks WHERE id=?", (task_id, ))[0]
+    task = Task()
+    task.local_id = data[0]
+    task.progress = [int(data[1]), 67108864]
+    task.min_maxTileX = json.loads(data[4])
+    task.min_maxTileY = json.loads(data[5])
+    task.max_area = int(data[6])
+    return task
+
 def set_shared(bssids):
     global conn
     if conn == None:

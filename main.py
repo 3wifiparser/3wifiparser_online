@@ -102,7 +102,7 @@ async def scan_task(task: utils.Task, pinging=True): # scans task
                 if time.time() - last_ping_time > ping_interval: # ping task
                     tasks.append(asyncio.create_task(ping_task(task, progressbar.n, not(pinging))))
                     last_ping_time = time.time()
-                if len(tasks) >= min(config.map_async_level, 4):
+                if len(tasks) >= min(config.map_async_level, 8):
                     total_found += await load_tasks(tasks, progressbar)
             except Exception as e:
                 progressbar.write("For load err: " + str(e))
@@ -143,9 +143,11 @@ async def scan_from_server():
     
 async def scan_from_user():
     database.load_db("main.db")
-    pos = offline_logic.get_pos1_pos2()
-    task = offline_logic.pos2task(pos)
-    database.create_task(task)
+    task = offline_logic.get_task_argv()
+    if task is None:
+        pos = offline_logic.get_pos1_pos2()
+        task = offline_logic.pos2task(pos)
+        database.create_task(task)
     await scan_task(task, False)
     await cloud.close_session()
 
@@ -161,7 +163,9 @@ async def pool_from_server():
 
 if __name__ == "__main__":
     mode = True
-    if not(config.always_offline or config.always_online):
+    if offline_logic.check_offline_argv():
+        mode = False
+    elif not(config.always_offline or config.always_online):
         mode = input("Specify operating mode.\n1 - online\n2 - offline\nMode: ")
         if not(mode in ["1", "2"]):
             raise Exception("Invalid input")
