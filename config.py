@@ -20,4 +20,4 @@ always_online = False
 pass_scan_type = 1
 pass_async_level = 8
 pass_threads_cnt = 1
-direct_api = False
+direct_api = True
