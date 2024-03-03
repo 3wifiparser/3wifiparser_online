@@ -4,7 +4,7 @@ import asyncio
 import threading
 import json
 from config import direct_api
-
+import logging
 
 api_url = "http://134.0.119.34/api" if direct_api else "https://wifibase.zapto.org:7080/api"
 api_key = "u2jJfJnlGXf0oi5VcBkt2LBKXIBgTkPd" if direct_api else "23ZRA8UBSLsdhbdJMp7IpbbsrDFDLuBC"
@@ -53,9 +53,9 @@ async def pool_passwords():
                     continue
                 result = await get_passwords(bssids, session)
                 if not(result["ok"]):
-                    print("Pass get err")
-            except Exception as e:
-                print("pool " + str(e))
+                    logging.error("gateway password request not ok")
+            except Exception:
+                logging.exception("gateway passwords: exception while pooling")
     
 def start_passwords_scan():
     global thread

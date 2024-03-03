@@ -3,6 +3,7 @@ import aiohttp
 import database
 import asyncio
 import config
+import logging
 
 thread_tasks = []
 passwd_threads = []
@@ -60,8 +61,8 @@ async def pool_passwords(thread_ind=0, async_limit=8):
                 else:
                     thread_balancer(config.pass_threads_cnt, async_limit)
                     await asyncio.sleep(0.5)
-            except Exception as e:
-                print("pool " + str(e))
+            except Exception:
+                logging.exception("ajax.pool_passwords while exception")
 
 def start_passwords_scan():
     global passwd_threads

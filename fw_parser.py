@@ -1,18 +1,20 @@
 
 import json
+import logging
+
+def clear_html_symb(st):
+    return st.replace("&nbsp;", " ").replace("&amp;", "&").replace("&gt;", ">").replace("&lt;", "<").replace("&quot;", "\"").replace("&#34;", "\"").replace("&#39;", "'").replace("&#160;", " ").replace("&apos;", "'").replace("&#38;", "&")
 
 def parse_map(data):
     stdata = data.find("{\"error\":")
     if stdata == -1:
-        with open("log.txt", "w", encoding="utf-8") as f:
-            f.write("Didn't find \"{\"error\":\" in data\ndata:\n" + data)
-        return {"ok": False, "rescan": True, "desc": "Didn't find data. (read log.txt)"}
+        logging.error("Didn't find \"{\"error\":\" in data")
+        return {"ok": False, "rescan": True, "desc": "Didn't find data"}
     data = data[stdata:-2]
     try:
         data = json.loads(data)["data"]["features"]
-    except Exception as e:
-        with open("log.txt", "w", encoding="utf-8") as f:
-            f.write("JSON parse error\ndata:\n" + data)
+    except Exception:
+        logging.error("JSON parse exception")
         return {"ok": False, "rescan": True, "desc": "JSON parse error. (read log.txt)"}
     nets = []
     if len(data) == 0:
@@ -33,7 +35,7 @@ def parse_map(data):
         for i in hintContent:
             data = i.split("<br>")[0:2]
             net = [
-                data[1].replace("&nbsp;", " ").replace("&amp;", "&").replace("&gt;", ">").replace("&lt;", "<"),
+                clear_html_symb(data[1]),
                 data[0],
                 coords[0],
                 coords[1]

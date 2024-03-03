@@ -69,9 +69,9 @@ def save_networks(data, subtask):
             cur.executemany(f"INSERT INTO networks (SSID, BSSID, lat, lon, local_id) VALUES ((?),(?),(?),(?),{subtask})", data)
             conn.commit()
             break
-        except Exception as e:
+        except Exception:
             retry_index = f"### RETRY {i}: " if i > 0 else ""
-            logging.warning(f"{retry_index}DB map scan err: {e}")
+            logging.exception(f"{retry_index}database.save_networks exception")
     cur.close()
     db_lock.release()
 
@@ -95,8 +95,8 @@ def save_passwords_ajax(data):
             cur.executemany(f"UPDATE networks SET format=0,sec=NULL,passwords=?,WPS_keys=?,time=NULL WHERE BSSID=?", psd_data)
             conn.commit()
             break
-        except Exception as e:
-            logging.warning(f"api_ans upd erorr: {e}")
+        except Exception:
+            logging.exception("database.save_passwords_ajax exception")
     cur.close()
     db_lock.release()
 
@@ -191,7 +191,10 @@ def get_non_shared():
     return _fetchall("SELECT SSID,BSSID,format,sec,passwords,WPS_keys,lat,lon,time FROM networks WHERE shared=0 AND NOT(format IS NULL) LIMIT 200")
 
 def get_task(task_id):
-    data = _fetchall("SELECT * FROM tasks WHERE id=?", (task_id, ))[0]
+    data = _fetchall("SELECT * FROM tasks WHERE id=?", (task_id, ))
+    if len(data) < 1:
+        raise Exception("Wrong task ID")
+    data = data[0]
     task = Task()
     task.local_id = data[0]
     task.progress = [int(data[1]), 67108864]

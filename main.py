@@ -15,7 +15,7 @@ import passwords
 #VERSION
 #3wifiparser2.0
 
-logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
+utils.set_log()
 database.init_temp_db()
 if not(config.api_url.endswith("/")):
     config.api_url += "/"
@@ -59,7 +59,7 @@ async def load(session: aiohttp.ClientSession, tile, zoom, random_subtask=0, res
     parsing_result = fw_parser.parse_map(await resp.text())
     if not(parsing_result["ok"]):
         if tqdm_bar is None:
-            print(parsing_result["desc"])
+            logging.error(f"main.load parsing_result not ok: {parsing_result}")
         else:
             tqdm_bar.write(parsing_result["desc"])
         if parsing_result["rescan"]:
@@ -94,6 +94,7 @@ async def scan_task(task: utils.Task, pinging=True): # scans task
     tiles = task.get_tiles()
     tiles = [",".join([str(y) for y in i]) for i in tiles]
     progressbar = tqdm.tqdm(total=len(tiles), ascii=config.only_ascii_progressbar)
+    utils.set_tqdm_log(progressbar)
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(force_close=True, ssl=False)) as session:
         tasks = []
         for tile in tiles:
@@ -105,18 +106,20 @@ async def scan_task(task: utils.Task, pinging=True): # scans task
                 if len(tasks) >= min(config.map_async_level, 8):
                     total_found += await load_tasks(tasks, progressbar)
             except Exception as e:
-                progressbar.write("For load err: " + str(e))
+                logging.exception("scan_task for exception")
             progressbar.update(1)
             progressbar.set_postfix_str(f"{total_found} networks found")
         if len(tasks) > 0:
             total_found += await load_tasks(tasks, progressbar)
     passwords.set_map_end(True)
     progressbar.close()
+    utils.set_log()
     cnter = 0
     no_loaded = database.get_null_passwords(task.local_id)
     if no_loaded != 0:
         progressbar = tqdm.tqdm(total=no_loaded, ascii=config.only_ascii_progressbar)
         progressbar.set_description_str("Loading passwords")
+        utils.set_tqdm_log(progressbar)
         while passwords.is_pooling():
             if cnter > ping_interval * 10:
                 await ping_task(task, len(tiles) - 1, not(pinging))
@@ -127,6 +130,7 @@ async def scan_task(task: utils.Task, pinging=True): # scans task
             await asyncio.sleep(0.5)
             cnter += 5
         progressbar.close()
+        utils.set_log()
     if not(pinging):
         while(await anon_upload()): # load all unloaded to server
             pass
@@ -135,11 +139,11 @@ async def scan_task(task: utils.Task, pinging=True): # scans task
 
 async def scan_from_server():
     task = await online_logic.get_task_from_server()
-    print("Task privated")
+    logging.info("Task privated")
     await scan_task(task)
-    print("\nSending scan results to server")
+    logging.info("\nSending scan results to server")
     await online_logic.load_task_to_server(task.local_id, task.server_id)
-    print("Completed!")
+    logging.info("Completed!")
     
 async def scan_from_user():
     database.load_db("main.db")
@@ -156,7 +160,7 @@ async def pool_from_server():
         try:
             await scan_from_server()
         except Exception as e:
-            print(f"EXCEPTION {e}")
+            logging.exception("scan_from_server exception")
             if str(e) == "Wrong login or password":
                 await asyncio.sleep(120)
             await asyncio.sleep(2)
@@ -179,4 +183,4 @@ if __name__ == "__main__":
         asyncio.run(pool_from_server())
     else:
         asyncio.run(scan_from_user())
-    print("End")
+    logging.info("End")

@@ -1,4 +1,5 @@
 import time
+import logging
 
 class Task:
     server_id: int
@@ -55,3 +56,26 @@ def partition_rectangle_cnt(x, y, width, height, max_area):
             number += partition_rectangle_cnt(x, y, width, half_height, max_area)
             number += partition_rectangle_cnt(x, y + half_height, width, height - half_height, max_area)
     return number
+
+class TqdmLoggingHandler(logging.Handler):
+    pgb = None
+    formatter = None
+    level = logging.INFO
+    def __init__(self, _pgb):
+        self.pgb = _pgb
+    def handle(self, record):
+        try:
+            msg = self.format(record)
+            self.pgb.write(msg)
+        except RecursionError:
+            raise
+        except Exception:
+            pass
+
+def set_tqdm_log(_pgb):
+    logging.root.handlers = []
+    logging.basicConfig(level=logging.INFO, handlers=[TqdmLoggingHandler(_pgb)], format="")
+
+def set_log():
+    logging.root.handlers = []
+    logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()], format="")
