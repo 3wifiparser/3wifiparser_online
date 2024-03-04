@@ -1,5 +1,6 @@
-import time
 import logging
+import config
+import aiohttp.typedefs
 
 class Task:
     server_id: int
@@ -79,3 +80,28 @@ def set_tqdm_log(_pgb):
 def set_log():
     logging.root.handlers = []
     logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()], format="")
+
+import enum
+class jsonlib(enum.Enum):
+    standart = 1
+    ujson = 2
+    orjson = 3
+
+json_lib = None
+def init_json_lib():
+    global json_lib
+    if config.json_lib == "ujson":
+        import ujson
+        json_lib = ujson
+        aiohttp.typedefs.DEFAULT_JSON_DECODER = json_lib.loads
+        aiohttp.typedefs.DEFAULT_JSON_ENCODER = json_lib.dumps
+    elif config.json_lib == "orjson":
+        import orjson
+        json_lib = orjson
+        aiohttp.typedefs.DEFAULT_JSON_DECODER = json_lib.loads
+        aiohttp.typedefs.DEFAULT_JSON_ENCODER = json_lib.dumps
+    elif config.json_lib == "standart":
+        import json
+        json_lib = json
+    else:
+        raise Exception("Wrong JSON library config")

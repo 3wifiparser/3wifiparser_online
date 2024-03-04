@@ -1,6 +1,6 @@
 import aiohttp
 import config
-import json
+from utils import json_lib as json
 import zlib
 
 token = None
@@ -12,7 +12,7 @@ user_agent = {
 async def set_session():
     global session
     if session == None:
-        session = aiohttp.ClientSession(headers=user_agent)
+        session = aiohttp.ClientSession(headers=user_agent, connector=aiohttp.TCPConnector(force_close=True))
 
 async def set_token():
     global token

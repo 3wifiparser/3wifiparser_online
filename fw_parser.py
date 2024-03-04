@@ -1,5 +1,4 @@
-
-import json
+from utils import json_lib as json
 import logging
 
 def clear_html_symb(st):

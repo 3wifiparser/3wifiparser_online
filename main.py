@@ -1,12 +1,14 @@
 import aiohttp
+import config
+import utils
+utils.init_json_lib()
+
 import asyncio
 import cloud
 import tqdm
 import time
-import config
 import fw_parser
 import database
-import utils
 import logging
 import online_logic
 import offline_logic

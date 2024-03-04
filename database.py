@@ -5,7 +5,7 @@ import string
 from threading import Lock
 import logging
 from time import time
-import json
+from utils import json_lib as json
 from datetime import datetime
 from utils import Task
 
@@ -138,7 +138,7 @@ def update_task(task: Task, progress: int):
 def create_task(task: Task):
     db_lock.acquire()
     cur = conn.cursor()
-    cur.execute("INSERT INTO tasks VALUES (NULL,0,\"[0,0]\",17,?,?,?);", (json.dumps(task.min_maxTileX),json.dumps(task.min_maxTileY),task.max_area))
+    cur.execute("INSERT INTO tasks VALUES (NULL,0,\"[0,0]\",17,?,?,?);", (json.dumps(task.min_maxTileX), json.dumps(task.min_maxTileY),task.max_area))
     cur.execute("SELECT id FROM tasks WHERE ROWID=?", (cur.lastrowid, ))
     task.local_id = cur.fetchone()[0]
     cur.close()

@@ -21,3 +21,6 @@ pass_scan_type = 1
 pass_async_level = 8
 pass_threads_cnt = 1
 direct_api = True
+
+#SPEED
+json_lib = "ujson" # "standart"(slow), "ujson"(medium), "orjson"(fastest, hard to install)

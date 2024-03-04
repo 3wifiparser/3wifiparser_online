@@ -2,7 +2,6 @@ import aiohttp
 import database
 import asyncio
 import threading
-import json
 from config import direct_api
 import logging
 
@@ -11,10 +10,7 @@ api_key = "u2jJfJnlGXf0oi5VcBkt2LBKXIBgTkPd" if direct_api else "23ZRA8UBSLsdhbd
 thread = None
 map_end = False
 
-headers = {
-    "Content-type": "application/json", 
-    "Accept": "text/plain"
-}
+headers = {}
 
 if direct_api:
     headers["Host"] = "3wifi.stascorp.com"
@@ -25,7 +21,7 @@ api_url += "apiquery"
 
 async def get_passwords(bssids: list, session):
     data = {"key": api_key, "bssid": [i[0] for i in bssids]}
-    resp = await session.post(api_url, data=json.dumps(data), headers=headers)
+    resp = await session.post(api_url, json=data, headers=headers)
     resp = await resp.json()
     if resp["result"]:
       database.save_passwords_gate(resp["data"])
@@ -41,7 +37,7 @@ async def get_passwords(bssids: list, session):
     
 async def pool_passwords():
     global map_end
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(force_close=True)) as session:
         while True:
             try:
                 if map_end:
