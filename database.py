@@ -169,9 +169,6 @@ def _fetchall(query:str, params=()):
     db_lock.release()
     return data
 
-def get_null_passwords(subtask):
-    return _fetchone("SELECT count(*) FROM networks WHERE format IS NULL AND local_id=?", (subtask, ))
-
 def get_cnt_null_pass():
     return _fetchone("SELECT count(*) FROM networks WHERE format IS NULL")
 
@@ -188,7 +185,7 @@ def get_total_nets():
     return _fetchone("SELECT max(ROWID) FROM networks;")
 
 def get_non_shared():
-    return _fetchall("SELECT SSID,BSSID,format,sec,passwords,WPS_keys,lat,lon,time FROM networks WHERE shared=0 AND NOT(format IS NULL) LIMIT 200")
+    return _fetchall("SELECT SSID,BSSID,format,sec,passwords,WPS_keys,lat,lon,time FROM networks WHERE shared=0 AND NOT(format IS NULL) LIMIT 800")
 
 def get_task(task_id):
     data = _fetchall("SELECT * FROM tasks WHERE id=?", (task_id, ))
@@ -209,7 +206,7 @@ def set_shared(bssids):
         init_temp_db()
     db_lock.acquire()
     cur = conn.cursor()
-    cur.execute(f"UPDATE networks SET shared=1 WHERE bssid IN ({json.dumps(bssids)[1:-1]});")
+    cur.execute(f"UPDATE networks SET shared=1 WHERE bssid IN ({str(bssids)[1:-1]});")
     cur.close()
     conn.commit()
     db_lock.release()

@@ -2,17 +2,17 @@ import aiohttp
 import database
 import asyncio
 import threading
-from config import direct_api
+import config
 import logging
 
-api_url = "http://134.0.119.34/api" if direct_api else "https://wifibase.zapto.org:7080/api"
-api_key = "u2jJfJnlGXf0oi5VcBkt2LBKXIBgTkPd" if direct_api else "23ZRA8UBSLsdhbdJMp7IpbbsrDFDLuBC"
+api_url = f"{'https' if config.use_https else 'http'}://134.0.119.34/api" if config.direct_api else "https://wifibase.zapto.org:7080/api"
+api_key = "u2jJfJnlGXf0oi5VcBkt2LBKXIBgTkPd" if config.direct_api else "23ZRA8UBSLsdhbdJMp7IpbbsrDFDLuBC"
 thread = None
 map_end = False
 
 headers = {}
 
-if direct_api:
+if config.direct_api:
     headers["Host"] = "3wifi.stascorp.com"
 
 if not(api_url.endswith("/")):
@@ -24,20 +24,20 @@ async def get_passwords(bssids: list, session):
     resp = await session.post(api_url, json=data, headers=headers)
     resp = await resp.json()
     if resp["result"]:
-      database.save_passwords_gate(resp["data"])
-      return {"ok": True}
+        database.save_passwords_gate(resp["data"])
+        return {"ok": True}
     elif resp["error"] == "cooldown":
         await asyncio.sleep(10)
         return get_passwords(bssids)
     elif resp["error"] == "request failed":
-          await asyncio.sleep(3)
-          return get_passwords(bssids)
+        await asyncio.sleep(3)
+        return get_passwords(bssids)
     else:
         return {"ok": False}
     
 async def pool_passwords():
     global map_end
-    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(force_close=True)) as session:
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(force_close=True, ssl=False)) as session:
         while True:
             try:
                 if map_end:
@@ -57,7 +57,6 @@ def start_passwords_scan():
     global thread
     thread = threading.Thread(target=asyncio.run, name=f"passpool", args=(pool_passwords(), ))
     thread.start()
-
 
 def is_pooling():
     global thread

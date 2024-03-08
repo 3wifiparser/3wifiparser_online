@@ -14,7 +14,7 @@ def parse_map(data):
         data = json.loads(data)["data"]["features"]
     except Exception:
         logging.error("JSON parse exception")
-        return {"ok": False, "rescan": True, "desc": "JSON parse error. (read log.txt)"}
+        return {"ok": False, "rescan": True, "desc": "JSON parse error."}
     nets = []
     if len(data) == 0:
         return {"ok": True, "result": nets}

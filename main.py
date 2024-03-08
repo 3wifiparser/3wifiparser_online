@@ -117,7 +117,7 @@ async def scan_task(task: utils.Task, pinging=True): # scans task
     progressbar.close()
     utils.set_log()
     cnter = 0
-    no_loaded = database.get_null_passwords(task.local_id)
+    no_loaded = database.get_cnt_null_pass(task.local_id)
     if no_loaded != 0:
         progressbar = tqdm.tqdm(total=no_loaded, ascii=config.only_ascii_progressbar)
         progressbar.set_description_str("Loading passwords")
@@ -126,7 +126,7 @@ async def scan_task(task: utils.Task, pinging=True): # scans task
             if cnter > ping_interval * 10:
                 await ping_task(task, len(tiles) - 1, not(pinging))
                 cnter = 0
-            n = database.get_null_passwords(task.local_id)
+            n = database.get_cnt_null_pass(task.local_id)
             progressbar.update(no_loaded - n)
             no_loaded = n
             await asyncio.sleep(0.5)
