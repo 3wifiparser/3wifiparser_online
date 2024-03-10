@@ -117,7 +117,7 @@ async def scan_task(task: utils.Task, pinging=True): # scans task
     progressbar.close()
     utils.set_log()
     cnter = 0
-    no_loaded = database.get_cnt_null_pass(task.local_id)
+    no_loaded = database.get_cnt_null_pass()
     if no_loaded != 0:
         progressbar = tqdm.tqdm(total=no_loaded, ascii=config.only_ascii_progressbar)
         progressbar.set_description_str("Loading passwords")
@@ -126,7 +126,7 @@ async def scan_task(task: utils.Task, pinging=True): # scans task
             if cnter > ping_interval * 10:
                 await ping_task(task, len(tiles) - 1, not(pinging))
                 cnter = 0
-            n = database.get_cnt_null_pass(task.local_id)
+            n = database.get_cnt_null_pass()
             progressbar.update(no_loaded - n)
             no_loaded = n
             await asyncio.sleep(0.5)
@@ -141,6 +141,8 @@ async def scan_task(task: utils.Task, pinging=True): # scans task
 
 async def scan_from_server():
     task = await online_logic.get_task_from_server()
+    if task is None:
+        return
     logging.info("Task privated")
     await scan_task(task)
     logging.info("\nSending scan results to server")
