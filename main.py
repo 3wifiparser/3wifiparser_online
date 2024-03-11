@@ -118,7 +118,6 @@ async def scan_task(task: utils.Task, pinging=True): # scans task
     utils.set_log()
     cnter = 0
     no_loaded = database.get_cnt_null_pass()
-    no_loaded = database.get_cnt_null_pass()
     if no_loaded != 0:
         progressbar = tqdm.tqdm(total=no_loaded, ascii=config.only_ascii_progressbar)
         progressbar.set_description_str("Loading passwords")
