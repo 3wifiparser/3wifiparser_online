@@ -105,3 +105,6 @@ def init_json_lib():
         json_lib = json
     else:
         raise Exception("Wrong JSON library config")
+
+def clear_html_symb(st):
+    return st.replace("&nbsp;", " ").replace("&amp;", "&").replace("&gt;", ">").replace("&lt;", "<").replace("&quot;", "\"").replace("&#34;", "\"").replace("&#39;", "'").replace("&#160;", " ").replace("&apos;", "'").replace("&#38;", "&")

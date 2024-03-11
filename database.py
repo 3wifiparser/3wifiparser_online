@@ -7,7 +7,7 @@ import logging
 from time import time
 from utils import json_lib as json
 from datetime import datetime
-from utils import Task
+from utils import Task, clear_html_symb
 
 conn = None
 db_lock = Lock()
@@ -104,25 +104,31 @@ def convert_date_to_unix(date_string):
     dt = datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S")
     return int(dt.timestamp())
 
-def save_passwords_gate(data):
+def save_passwords_gate(data, deep=False):
     global conn
     if conn == None:
         init_temp_db()
     db_lock.acquire()
     cur = conn.cursor()
-    for bssid, wifi_list in data.items():
-        wifi_list.sort(key=lambda a: convert_date_to_unix(a["time"]))
-        cur.execute("UPDATE networks SET format=-1 WHERE BSSID=? AND format is NULL", (bssid, ))
+    if data == []:
+        return
+    for dirtybssid, wifi_list in data.items():
+        if not(deep):
+            cur.execute("UPDATE networks SET format=-1 WHERE BSSID=? AND format is NULL", (dirtybssid, ))
         for wifi_info in wifi_list:
+            bssid = wifi_info["bssid"]
             essid = wifi_info["essid"]
+            cl_essid = clear_html_symb(wifi_info["essid"])
             sec = wifi_info["sec"]
             key = wifi_info["key"]
             wps = wifi_info["wps"]
             tim = wifi_info["time"]
             cur.execute(f"""UPDATE networks SET format=1,sec=?,passwords=?,WPS_keys=?,time=?
             WHERE ROWID IN (
-                SELECT ROWID FROM networks WHERE BSSID=? AND SSID=? AND format=-1 LIMIT 1
-            )""", (sec, key, wps, tim, bssid, essid))
+                SELECT ROWID FROM networks WHERE BSSID=? AND (SSID=? OR SSID=?) AND format=? LIMIT 1
+            )""", (sec, key, wps, tim, bssid, essid, cl_essid, -2 if deep else -1))
+        if not(deep) and len(wifi_list) >= 10:
+            cur.execute("UPDATE networks SET format=-2 WHERE BSSID=? AND format=-1", (dirtybssid, )) # not scanned networks to deep scan
     cur.close()
     conn.commit()
     db_lock.release()
@@ -170,13 +176,13 @@ def _fetchall(query:str, params=()):
     return data
 
 def get_cnt_null_pass():
-    return _fetchone("SELECT count(*) FROM networks WHERE format IS NULL")
+    return _fetchone("SELECT count(*) FROM networks WHERE format IS NULL OR format=-2")
 
 def get_bssids_tb(all_queued, limit):
-    return _fetchall("SELECT DISTINCT bssid FROM networks WHERE format IS NULL AND bssid NOT in (?) LIMIT (?)", (str(all_queued)[1:-1], limit))
+    return _fetchall("SELECT DISTINCT BSSID FROM networks WHERE format IS NULL AND BSSID NOT in (?) LIMIT (?)", (str(all_queued)[1:-1], limit))
 
 def get_null_passwords_bssids(limit):
-    return _fetchall("SELECT DISTINCT bssid FROM networks WHERE format IS NULL LIMIT (?)", (limit, ))
+    return _fetchall("SELECT DISTINCT format,BSSID,SSID FROM networks WHERE format IS NULL OR format=-2 LIMIT (?)", (limit, ))
 
 def get_nets(subtask):
     return _fetchall("SELECT SSID,BSSID,format,sec,passwords,WPS_keys,lat,lon,time FROM networks WHERE local_id=?", (subtask, ))
@@ -185,7 +191,7 @@ def get_total_nets():
     return _fetchone("SELECT max(ROWID) FROM networks;")
 
 def get_non_shared():
-    return _fetchall("SELECT SSID,BSSID,format,sec,passwords,WPS_keys,lat,lon,time FROM networks WHERE shared=0 AND NOT(format IS NULL) LIMIT 800")
+    return _fetchall("SELECT SSID,BSSID,format,sec,passwords,WPS_keys,lat,lon,time FROM networks WHERE shared=0 AND NOT(format IS NULL OR format=-2) LIMIT 800")
 
 def get_task(task_id):
     data = _fetchall("SELECT * FROM tasks WHERE id=?", (task_id, ))

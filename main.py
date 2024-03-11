@@ -117,7 +117,7 @@ async def scan_task(task: utils.Task, pinging=True): # scans task
     progressbar.close()
     utils.set_log()
     cnter = 0
-    no_loaded = database.get_cnt_null_pass(task.local_id)
+    no_loaded = database.get_cnt_null_pass()
     if no_loaded != 0:
         progressbar = tqdm.tqdm(total=no_loaded, ascii=config.only_ascii_progressbar)
         progressbar.set_description_str("Loading passwords")
@@ -126,7 +126,7 @@ async def scan_task(task: utils.Task, pinging=True): # scans task
             if cnter > ping_interval * 10:
                 await ping_task(task, len(tiles) - 1, not(pinging))
                 cnter = 0
-            n = database.get_cnt_null_pass(task.local_id)
+            n = database.get_cnt_null_pass()
             progressbar.update(no_loaded - n)
             no_loaded = n
             await asyncio.sleep(0.5)
@@ -157,6 +157,24 @@ async def scan_from_user():
     await scan_task(task, False)
     await cloud.close_session()
 
+async def rescan_passwords():
+    database.load_db("main.db")
+    passwords.start_passwords_scan()
+    passwords.set_map_end(True)
+    no_loaded = database.get_cnt_null_pass()
+    if no_loaded != 0:
+        progressbar = tqdm.tqdm(total=no_loaded, ascii=config.only_ascii_progressbar)
+        progressbar.set_description_str("Loading passwords")
+        utils.set_tqdm_log(progressbar)
+        while passwords.is_pooling():
+            n = database.get_cnt_null_pass()
+            progressbar.n = (no_loaded - n) - 1
+            progressbar.update(1)
+            await asyncio.sleep(0.5)
+        progressbar.close()
+        utils.set_log()
+    passwords.clear()
+
 async def pool_from_server():
     while True:
         try:
@@ -168,21 +186,20 @@ async def pool_from_server():
             await asyncio.sleep(2)
 
 if __name__ == "__main__":
-    mode = True
+    mode = 1
     if offline_logic.check_offline_argv():
-        mode = False
+        mode = 2
     elif not(config.always_offline or config.always_online):
         mode = input("Specify operating mode.\n1 - online\n2 - offline\nMode: ")
-        if not(mode in ["1", "2"]):
+        if not(mode in ["1", "2", "3"]):
             raise Exception("Invalid input")
-        if mode == "2":
-            mode = False
-        else:
-            mode = True
+        mode = int(mode)
     elif config.always_offline:
-        mode = False
-    if mode:
+        mode = 2
+    if mode == 1:
         asyncio.run(pool_from_server())
-    else:
+    elif mode == 2:
         asyncio.run(scan_from_user())
+    elif mode == 3:
+        asyncio.run(rescan_passwords())
     logging.info("End")

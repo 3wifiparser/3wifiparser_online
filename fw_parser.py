@@ -1,8 +1,6 @@
 from utils import json_lib as json
+from utils import clear_html_symb
 import logging
-
-def clear_html_symb(st):
-    return st.replace("&nbsp;", " ").replace("&amp;", "&").replace("&gt;", ">").replace("&lt;", "<").replace("&quot;", "\"").replace("&#34;", "\"").replace("&#39;", "'").replace("&#160;", " ").replace("&apos;", "'").replace("&#38;", "&")
 
 def parse_map(data):
     stdata = data.find("{\"error\":")
