@@ -36,19 +36,25 @@ CREATE TABLE IF NOT EXISTS "tasks" (
 	"min_maxTileY"	TEXT,
 	"max_area"	INTEGER,
 	PRIMARY KEY("id" AUTOINCREMENT)
+);
+CREATE INDEX "format" ON "networks" (
+	"format"
+);
+CREATE INDEX "name" ON "networks" (
+	"BSSID",
+	"SSID"
 );"""
 
 def init_temp_db():
     global conn
     if not(os.path.isdir("tempdbs")):
         os.mkdir("tempdbs")
-    rand_database_id = "".join(random.choices(string.ascii_letters, k=5))
-    conn = sqlite3.connect(f"tempdbs/temp{rand_database_id}.db", check_same_thread=False)
+    rand_database_id = "".join(random.choices(string.ascii_letters, k=10))
+    conn = sqlite3.connect(f"tempdbs/temp_{rand_database_id}.db", check_same_thread=False)
     cur = conn.cursor()
     cur.executescript(drop_tables + create_tables)
     cur.close()
     conn.commit()
-
 
 def load_db(path):
     global conn
@@ -57,6 +63,11 @@ def load_db(path):
     cur.executescript(create_tables)
     cur.close()
     conn.commit()
+
+def rotate_base():
+    if conn is not None:
+        conn.close()
+    init_temp_db()
 
 def save_networks(data, subtask):
     global conn
@@ -188,7 +199,7 @@ def get_nets(subtask):
     return _fetchall("SELECT SSID,BSSID,format,sec,passwords,WPS_keys,lat,lon,time FROM networks WHERE local_id=?", (subtask, ))
 
 def get_total_nets():
-    return _fetchone("SELECT max(ROWID) FROM networks;")
+    return _fetchone("SELECT count(*) FROM networks;")
 
 def get_non_shared():
     return _fetchall("SELECT SSID,BSSID,format,sec,passwords,WPS_keys,lat,lon,time FROM networks WHERE shared=0 AND NOT(format IS NULL OR format=-2) LIMIT 800")

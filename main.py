@@ -18,7 +18,6 @@ import passwords
 #3wifiparser2.0
 
 utils.set_log()
-database.init_temp_db()
 if not(config.api_url.endswith("/")):
     config.api_url += "/"
 headers = { 
@@ -147,6 +146,8 @@ async def scan_from_server():
     await scan_task(task)
     logging.info("\nSending scan results to server")
     await online_logic.load_task_to_server(task.local_id, task.server_id)
+    if database.get_total_nets() > 50000:
+        database.rotate_base()
     logging.info("Completed!")
     
 async def scan_from_user():
@@ -178,6 +179,7 @@ async def rescan_passwords():
     passwords.clear()
 
 async def pool_from_server():
+    database.init_temp_db()
     while True:
         try:
             await scan_from_server()
