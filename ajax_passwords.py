@@ -18,6 +18,9 @@ headers = {
 }
 ajax_apikey = "23ZRA8UBSLsdhbdJMp7IpbbsrDFDLuBC"
 
+def set_api_url(url):
+    api_path = url
+
 async def get_passwords(session, bssids: list):
     tasks = [asyncio.create_task(session.get(f"{api_path}/api/ajax.php?Version=0.51&Key={ajax_apikey}&Query=Find&BSSID={i}", headers=headers)) for i in bssids]
     responses = await asyncio.gather(*tasks)

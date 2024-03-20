@@ -10,6 +10,9 @@ api_key = "u2jJfJnlGXf0oi5VcBkt2LBKXIBgTkPd" if config.direct_api else "23ZRA8UB
 thread = None
 map_end = False
 
+def set_api_url(url):
+    pass
+
 headers = {}
 
 if config.direct_api:

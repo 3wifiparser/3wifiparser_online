@@ -39,7 +39,7 @@ def get_pos1_pos2():
 
 projection = 0.0818191908426
 z = 17
-max_area = 20
+max_area = 100
 
 def pos2task(borders):
     border1, border2 = borders

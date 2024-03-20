@@ -74,7 +74,9 @@ async def complete_task(result: list, task_id: int):
         "task_id": task_id,
         "token": token
     }
-    body = json.dumps(body).encode("utf-8")
+    body = json.dumps(body)
+    if isinstance(body, str):
+        body = body.encode("utf-8")
     body = zlib.compress(body, 9)
     headers = {
         "Content-Type": "application/json",
@@ -94,7 +96,9 @@ async def anonymous_upload(data: list):
     #data - SSID,BBSID,format,sec,passwords,WPS_keys,lat,lon,time
     global session,token,anon_addr
     await set_session()
-    body = json.dumps({"data": data}).encode("utf-8")
+    body = json.dumps({"data": data})
+    if isinstance(body, str):
+        body = body.encode("utf-8")
     body = zlib.compress(body, 9)
     headers = {
         "Content-Type": "application/json",

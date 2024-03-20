@@ -4,7 +4,6 @@ import random
 import string
 from threading import Lock
 import logging
-from time import time
 from utils import json_lib as json
 from datetime import datetime
 from utils import Task, clear_html_symb
@@ -37,10 +36,10 @@ CREATE TABLE IF NOT EXISTS "tasks" (
 	"max_area"	INTEGER,
 	PRIMARY KEY("id" AUTOINCREMENT)
 );
-CREATE INDEX "format" ON "networks" (
+CREATE INDEX IF NOT EXISTS "format" ON "networks" (
 	"format"
 );
-CREATE INDEX "name" ON "networks" (
+CREATE INDEX IF NOT EXISTS "name" ON "networks" (
 	"BSSID",
 	"SSID"
 );"""
@@ -145,12 +144,7 @@ def save_passwords_gate(data, deep=False):
     db_lock.release()
 
 def update_task(task: Task, progress: int):
-    db_lock.acquire()
-    cur = conn.cursor()
-    cur.execute("UPDATE tasks SET progress=? WHERE id=?", (progress, task.local_id))
-    cur.close()
-    conn.commit()
-    db_lock.release()
+    _execute("UPDATE tasks SET progress=? WHERE id=?", (progress, task.local_id))
 
 def create_task(task: Task):
     db_lock.acquire()
@@ -162,29 +156,36 @@ def create_task(task: Task):
     conn.commit()
     db_lock.release()
 
-def _fetchone(query:str, params=()):
+def _get_cursor():
     global conn
     if conn == None:
         init_temp_db()
     db_lock.acquire()
     cur = conn.cursor()
+    return cur
+
+def _close_cursor(cur):
+    cur.close()
+    db_lock.release()
+
+def _fetchone(query:str, params=[]):
+    cur = _get_cursor()
     cur.execute(query, params)
     data = cur.fetchone()[0]
-    cur.close()
-    db_lock.release()
+    _close_cursor(cur)
     return data
 
-def _fetchall(query:str, params=()):
-    global conn
-    if conn == None:
-        init_temp_db()
-    db_lock.acquire()
-    cur = conn.cursor()
+def _fetchall(query:str, params=[]):
+    cur = _get_cursor()
     cur.execute(query, params)
     data = cur.fetchall()
-    cur.close()
-    db_lock.release()
+    _close_cursor(cur)
     return data
+
+def _execute(query: str, params=[]):
+    cur = _get_cursor()
+    cur.execute(query, params)
+    _close_cursor(cur)
 
 def get_cnt_null_pass():
     return _fetchone("SELECT count(*) FROM networks WHERE format IS NULL OR format=-2")
@@ -218,12 +219,4 @@ def get_task(task_id):
     return task
 
 def set_shared(bssids):
-    global conn
-    if conn == None:
-        init_temp_db()
-    db_lock.acquire()
-    cur = conn.cursor()
-    cur.execute(f"UPDATE networks SET shared=1 WHERE bssid IN ({str(bssids)[1:-1]});")
-    cur.close()
-    conn.commit()
-    db_lock.release()
+    _execute(f"UPDATE networks SET shared=1 WHERE bssid IN ({str(bssids)[1:-1]});")
