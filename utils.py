@@ -29,6 +29,7 @@ class Task:
             x_len = self.min_maxTileX[1] - self.min_maxTileX[0] + 1
             y_len = self.min_maxTileY[1] - self.min_maxTileY[0] + 1
             reqs = (x_len * y_len * 3) / self.max_area / 2 # approximate number of requests
+            reqs = min(reqs, self.progress[1] - self.progress[0] + 1)
             self.tiles_cache_type = 1 if reqs > 50000 else 0
         if self.tiles_cache_type == 1 and self.cache_file is None: # tiles in file
             x_len = self.min_maxTileX[1] - self.min_maxTileX[0] + 1
@@ -97,19 +98,34 @@ def partition_rectangle_tofile(x, y, width, height, max_area, start=0, end=67108
             wfile.write(struct.pack("iiii", x, y, x + width - 1, y + height - 1))
         nrects[0] += 1
         if nrects[0] >= end:
-            return
+            if fst:
+                fname = wfile.name
+                wfile.close()
+                return (fname, nrects[0]-start)
+            else:
+                return
     else:
         if width > height:
             half_width = width // 2
             partition_rectangle_tofile(x, y, half_width, height, max_area, start, end, nrects, wfile)
             if nrects[0] >= end:
-                return
+                if fst:
+                    fname = wfile.name
+                    wfile.close()
+                    return (fname, nrects[0]-start)
+                else:
+                    return
             partition_rectangle_tofile(x + half_width, y, width - half_width, height, max_area, start, end, nrects, wfile)
         else:
             half_height = height // 2
             partition_rectangle_tofile(x, y, width, half_height, max_area, start, end, nrects, wfile)
             if nrects[0] >= end:
-                return
+                if fst:
+                    fname = wfile.name
+                    wfile.close()
+                    return (fname, nrects[0]-start)
+                else:
+                    return
             partition_rectangle_tofile(x, y + half_height, width, height - half_height, max_area, start, end, nrects, wfile)
     if fst:
         fname = wfile.name
